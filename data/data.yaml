@@ -1,0 +1,13 @@
+train: ./train/images
+val: ./valid/images
+test: ./test/images
+
+nc: 7
+names: ['Car', 'Van', 'Truck', 'Pedestrian', 'Person_sitting', 'Cyclist', 'Tram']
+
+roboflow:
+  workspace: yolo-pffge
+  project: kitti-iwkdf
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/yolo-pffge/kitti-iwkdf/dataset/1
