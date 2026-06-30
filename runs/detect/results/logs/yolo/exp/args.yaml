@@ -1,7 +1,7 @@
 task: detect
 mode: train
-model: yolov8n.pt
-data: data/data.yaml
+model: runs\detect\results\logs\yolo\exp\weights\last.pt
+data: data\data.yaml
 epochs: 10
 time: null
 patience: 5
@@ -11,7 +11,7 @@ save: true
 save_period: -1
 cache: false
 device: cpu
-workers: 8
+workers: 0
 project: results/logs/yolo
 name: exp
 exist_ok: true
@@ -24,7 +24,7 @@ single_cls: false
 rect: false
 cos_lr: false
 close_mosaic: 10
-resume: false
+resume: runs\detect\results\logs\yolo\exp\weights\last.pt
 amp: true
 fraction: 1.0
 profile: false

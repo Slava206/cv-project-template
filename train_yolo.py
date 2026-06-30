@@ -18,7 +18,7 @@ def main():
     set_seed(42)
 
     # Путь к файлу с последней контрольной точкой
-    last_weights_path = 'results/logs/yolo/exp/weights/last.pt'
+    last_weights_path = 'runs/detect/results/logs/yolo/exp/weights/last.pt'
 
     # Проверяем есть ли уже сохраненная модель
     if os.path.exists(last_weights_path):
