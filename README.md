@@ -1,1 +1,1 @@
-test
+https://docs.ultralytics.com/modes/train#resuming-interrupted-trainings - возобновление обучения модели yolov8 (Ultralytics yolo)
