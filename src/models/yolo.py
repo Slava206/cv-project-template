@@ -1,7 +1,3 @@
-"""
-Модель YOLOv8 для детекции объектов.
-"""
-
 from ultralytics import YOLO
 import torch
 import numpy as np
@@ -9,11 +5,7 @@ from typing import List, Tuple, Dict
 import os
 
 
-class YOLOv8Model:
-    """
-    YOLOv8 - одноступенчатый детектор.
-    """
-    
+class YOLOv8Model:    
     def __init__(
         self,
         model_name: str = 'yolov8n.pt',
@@ -34,23 +26,21 @@ class YOLOv8Model:
     def train(
         self,
         data_yaml: str,
-        epochs: int = 10,
-        batch_size: int = 8,
-        imgsz: int = 640,
+        epochs: int = 15,
+        batch_size: int = 4,
+        imgsz: int = 320,
         lr: float = 0.001,
         optimizer: str = 'AdamW',
         weight_decay: float = 0.0005,
         momentum: float = 0.937,
         patience: int = 5
     ):
-        print(f"\n{'='*50}")
         print("НАЧАЛО ОБУЧЕНИЯ YOLOv8")
         print(f"{'='*50}")
         print(f"Эпох: {epochs}")
         print(f"Batch size: {batch_size}")
         print(f"Размер изображений: {imgsz}")
         print(f"Learning rate: {lr}")
-        print(f"{'='*50}\n")
         
         train_args = {
             'data': data_yaml,
@@ -73,7 +63,7 @@ class YOLOv8Model:
         
         results = self.model.train(**train_args)
         
-        print(f"\nОбучение завершено!")
+        print(f"\nОбучение завершено")
         print(f"Результаты: results/logs/yolo/exp/")
         
         return results
@@ -125,7 +115,7 @@ class YOLOv8Model:
         print(f"   mAP@0.5:0.95: {result['mAP50_95']:.4f}")
         print(f"   Precision: {result['precision']:.4f}")
         print(f"   Recall: {result['recall']:.4f}")
-        print(f"   F1: {result['f1']:.4f}")
+        print(f"   F1: {float(result['f1']):.4f}")
         
         return result
     

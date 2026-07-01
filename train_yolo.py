@@ -1,6 +1,5 @@
 import sys
 import os
-from ultralytics import YOLO
 
 # Добавляем путь к src
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -9,36 +8,45 @@ from src.models.yolo import YOLOv8Model
 from src.utils.utils import get_device, set_seed
 
 def main():
+    # Настройки
     DATA_YAML = 'data/data.yaml'
-    EPOCHS = 25
-    BATCH_SIZE = 8
-    IMG_SIZE = 640
-
-    device = get_device()
+    EPOCHS = 15
+    BATCH_SIZE = 4
+    IMG_SIZE = 320
+    
+    # Фиксируем seed для воспроизводимости
     set_seed(42)
-
-    # Путь к файлу с последней контрольной точкой
-    last_weights_path = 'runs/detect/results/logs/yolo/exp/weights/last.pt'
-
-    # Проверяем есть ли уже сохраненная модель
-    if os.path.exists(last_weights_path):
-        print(f"Найдена контрольная точка: {last_weights_path}")
-        print("Возобновляем обучение...")
-        model = YOLO(last_weights_path)
-        model.train(resume=True)
-    else:
-        print("Запуск обучение с нуля...")
-        model = YOLOv8Model(
-            model_name='yolov8n.pt',
-            num_classes=7,
-            device=device
-        )
-        model.train(
-            data_yaml=DATA_YAML,
-            epochs=EPOCHS,
-            batch_size=BATCH_SIZE,
-            imgsz=IMG_SIZE
-        )
+    device = get_device()
+    
+    print(f"Устройство: {device}")
+    
+    # Создаем модель
+    model = YOLOv8Model(
+        model_name='yolov8n.pt',
+        num_classes=7,
+        device=device
+    )
+    
+    # Обучение
+    model.train(
+        data_yaml=DATA_YAML,
+        epochs=EPOCHS,
+        batch_size=BATCH_SIZE,
+        imgsz=IMG_SIZE
+    )
+    
+    # Оценка
+    metrics = model.evaluate(
+        data_yaml=DATA_YAML,
+        batch_size=BATCH_SIZE,
+        imgsz=IMG_SIZE
+    )
+    
+    # Сохранение
+    model.save('results/models/yolov8_best.pt')
+    
+    print("Модель: results/models/yolov8_best.pt")
+    print("Графики: results/logs/yolo/exp/")
 
 if __name__ == "__main__":
     main()
