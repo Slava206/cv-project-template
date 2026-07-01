@@ -1,13 +1,11 @@
-
 # Faster R-CNN адаптированная под KITTI.
 
-
+import os
 import torch
 import torchvision
-from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from torchvision.models.detection.rpn import AnchorGenerator
 from tqdm import tqdm
+import json
 
 
 class FasterRCNNModel:
@@ -34,15 +32,19 @@ class FasterRCNNModel:
         print(f"Faster R-CNN адаптирована для {num_classes} классов KITTI")
         print(f"Устройство: {device}")
     
-    def train(self, train_loader, val_loader, epochs=3, lr=0.001):
-        
-        # Дообучение на KITTI
+    def train(self, train_loader, val_loader, epochs=15, lr=0.001, save_best=True, save_dir='checkpoints'):
+        """
+        Дообучение Faster R-CNN на KITTI
+        """
+        # Создаем папку для чекпоинтов
+        os.makedirs(save_dir, exist_ok=True)
         
         print("Дообучение FASTER R-CNN НА KITTI")
         print(f"Эпох: {epochs}")
         print(f"Learning rate: {lr}")
+        print(f"Чекпоинты сохраняются в: {save_dir}")
         
-        # Оптимизатор SGD
+        # Оптимизатор
         optimizer = torch.optim.SGD(
             self.model.parameters(),
             lr=lr,
@@ -50,12 +52,20 @@ class FasterRCNNModel:
             weight_decay=0.0005
         )
         
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+        
         self.model.train()
+        best_loss = float('inf')
+        history = {'epochs': [], 'train_loss': [], 'val_loss': []}
         
         for epoch in range(epochs):
             total_loss = 0
             
-            for images, targets, _ in tqdm(train_loader, desc=f'Epoch {epoch+1}/{epochs}'):
+            # Прогресс-бар
+            loop = tqdm(train_loader, desc=f'Epoch {epoch+1}/{epochs}')
+            
+            for images, targets, _ in loop:
+                # Перенос на GPU
                 images = [img.to(self.device) for img in images]
                 targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets]
                 
@@ -69,11 +79,90 @@ class FasterRCNNModel:
                 optimizer.step()
                 
                 total_loss += losses.item()
+                
+                # Обновляем прогресс-бар
+                loop.set_postfix(loss=losses.item())
+            
+            scheduler.step()
             
             avg_loss = total_loss / len(train_loader)
-            print(f"  Epoch {epoch+1}: Loss = {avg_loss:.4f}")
+            print(f"  Epoch {epoch+1}/{epochs}: Loss = {avg_loss:.4f}")
+            
+            # Валидация
+            val_loss = None
+            if val_loader is not None:
+                val_loss = self._validate(val_loader)
+                print(f"  Val Loss: {val_loss:.4f}")
+            
+            # Сохраняем историю
+            history['epochs'].append(epoch + 1)
+            history['train_loss'].append(avg_loss)
+            history['val_loss'].append(val_loss if val_loss is not None else 0)
+            
+            # Сохраняем чекпоинт каждой эпохи
+            checkpoint_path = f'{save_dir}/checkpoint_epoch_{epoch+1}.pth'
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': self.model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': avg_loss,
+                'val_loss': val_loss,
+            }, checkpoint_path)
+            print(f"  Чекпоинт сохранен: {checkpoint_path}")
+            
+            # Сохраняем лучшую модель
+            if save_best and avg_loss < best_loss:
+                best_loss = avg_loss
+                best_path = f'{save_dir}/best_model_epoch_{epoch+1}.pth'
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': self.model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': best_loss,
+                    'val_loss': val_loss,
+                }, best_path)
+                print(f"  Лучшая модель сохранена (loss: {best_loss:.4f})")
+            
+            # Сохраняем историю
+            with open(f'{save_dir}/training_history.json', 'w') as f:
+                json.dump(history, f, indent=2)
         
-        print("\nДообучение завершено")
+        print(f"\n Дообучение завершено! Лучший loss: {best_loss:.4f}")
+        return best_loss
+    
+    def _validate(self, val_loader):
+        """
+        Валидация модели на валидационном наборе данных.
+        """
+        # Сохраняем текущий режим
+        was_training = self.model.training
+        
+        # Переключаем в режим train для вычисления loss
+        self.model.train()
+        total_loss = 0
+        num_batches = 0
+        
+        with torch.no_grad():
+            for images, targets, _ in val_loader:
+                images = [img.to(self.device) for img in images]
+                targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets]
+                
+                # В режиме train модель возвращает словарь с потерями
+                loss_dict = self.model(images, targets)
+                losses = sum(loss for loss in loss_dict.values())
+                total_loss += losses.item()
+                num_batches += 1
+        
+        # Восстанавливаем исходный режим
+        if was_training:
+            self.model.train()
+        else:
+            self.model.eval()
+        
+        if num_batches == 0:
+            return 0.0
+        
+        return total_loss / num_batches
     
     def predict(self, image, threshold=0.5):
         # Предсказание на одном изображении
@@ -94,7 +183,7 @@ class FasterRCNNModel:
         return boxes, scores, labels
     
     def evaluate(self, val_loader):
-        print("\nОценка Faster R-CNN на KITTI...")
+        print("\n Оценка Faster R-CNN на KITTI...")
         self.model.eval()
         
         total_boxes = 0
@@ -120,7 +209,15 @@ class FasterRCNNModel:
         }
     
     def save(self, path):
+        """Сохраняет модель"""
+        os.makedirs(os.path.dirname(path) if os.path.dirname(path) else '.', exist_ok=True)
         torch.save(self.model.state_dict(), path)
+        print(f" Модель сохранена: {path}")
     
     def load(self, path):
-        self.model.load_state_dict(torch.load(path))
+        """Загружает модель"""
+        if os.path.exists(path):
+            self.model.load_state_dict(torch.load(path, map_location=self.device))
+            print(f" Модель загружена: {path}")
+        else:
+            print(f" Файл не найден: {path}")
